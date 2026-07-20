@@ -47,6 +47,15 @@
             <h1 class="text-2xl font-bold text-gray-800">Select Tool</h1>
             <p class="text-gray-500 mt-2 text-sm mb-6">What would you like to do with your HTML presentation?</p>
 
+            <div class="mb-6 text-left bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <label class="block text-sm font-medium text-indigo-900 mb-1 flex items-center">
+                    <svg class="w-4 h-4 mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Gemini API Key (Optional)
+                </label>
+                <input type="password" id="gemini-api-key" placeholder="Enter API key for smarter AI conversion" class="w-full border border-indigo-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-sm">
+                <p class="text-xs text-indigo-500 mt-1">Leave blank to use the standard local converter.</p>
+            </div>
+
             <div class="space-y-4">
                 <button onclick="selectMode('pdf')" class="w-full group relative flex flex-col items-center p-6 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left">
                     <div class="flex items-center w-full mb-2">
@@ -197,7 +206,7 @@
 
     <!-- STREAMING_CHUNK:Javascript Logic -->
     <script>
-        const state = { subjects: [], selectedSubjectId: null, selectedSubjectName: null, selectedFile: null, mode: 'pdf' };
+        const state = { subjects: [], selectedSubjectId: null, selectedSubjectName: null, selectedFile: null, mode: 'pdf', geminiApiKey: '' };
         const { jsPDF } = window.jspdf;
 
         // UI Elements
@@ -268,6 +277,10 @@
 
         function selectMode(mode) {
             state.mode = mode;
+            const apiKeyInput = document.getElementById('gemini-api-key');
+            if (apiKeyInput) {
+                state.geminiApiKey = apiKeyInput.value.trim();
+            }
             screenModeSelection.classList.remove('active');
             setTimeout(() => screenLanding.classList.add('active'), 300);
         }
@@ -339,9 +352,21 @@
             
             try {
                 updateStatus('Reading HTML file...', 5);
-                const htmlContent = await readFileAsText(state.selectedFile);
+                let htmlContent = await readFileAsText(state.selectedFile);
 
-                updateStatus('Rendering secure browser environment...', 15);
+                if (state.geminiApiKey) {
+                    updateStatus('Analyzing and rewriting with Gemini AI...', 15);
+                    htmlContent = await callGeminiAPI(htmlContent, state.mode, state.geminiApiKey);
+
+                    // If mode is mobile and we used AI, we can just save the AI generated HTML directly
+                    if (state.mode === 'mobile') {
+                        updateStatus('Uploading AI optimized HTML to Google Drive...', 90);
+                        server.withSuccessHandler(onSuccess).withFailureHandler(onError).saveHtmlToDrive(htmlContent, finalName, state.selectedSubjectId);
+                        return;
+                    }
+                }
+
+                updateStatus('Rendering secure browser environment...', 25);
                 const iframe = document.getElementById('render-container');
                 const doc = iframe.contentWindow.document;
                 
@@ -350,7 +375,7 @@
                 doc.close();
 
                 // STREAMING_CHUNK:Waiting for Fonts and Images
-                updateStatus('Painting images and icons...', 25);
+                updateStatus('Painting images and icons...', 35);
                 await new Promise(async resolve => {
                     const checkReady = async () => {
                         try {
@@ -680,6 +705,67 @@
             updateStatus('Uploading optimized HTML to Google Drive...', 90);
 
             server.withSuccessHandler(onSuccess).withFailureHandler(onError).saveHtmlToDrive(finalHtml, finalName, state.selectedSubjectId);
+        }
+
+        // STREAMING_CHUNK:Gemini API Logic
+        async function callGeminiAPI(originalHtml, mode, apiKey) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+            let prompt = "";
+            if (mode === 'pdf') {
+                prompt = `You are an expert web developer. I have an HTML presentation file. I need to convert it into a static, clean HTML document optimized for printing to A4 PDF.
+1. Remove all interactive presentation scripts (like reveal.js, impress.js, etc).
+2. Remove all absolute positioning that overlays slides on top of each other.
+3. Make sure all text and images are fully visible (no opacity: 0 or display: none).
+4. Lay out the slides vertically so they can be captured by a PDF generator.
+5. Return ONLY the raw valid HTML code, with no markdown formatting wrappers like \`\`\`html.
+
+Here is the HTML to optimize:
+`;
+            } else {
+                prompt = `You are an expert web developer. I have an HTML presentation file. I need to convert it into a clean, mobile-responsive vertical layout optimized for viewing on a phone in portrait orientation.
+1. Remove all interactive presentation scripts (like reveal.js).
+2. Remove all presentation-specific UI controls and absolute/fixed positioning.
+3. Ensure all text and images are fully visible (no opacity: 0 or display: none).
+4. Add a clean, responsive CSS reset that stacks all slides vertically like cards.
+5. Make sure the text scales nicely on narrow screens (max-width: 600px).
+6. Return ONLY the raw valid HTML code, with no markdown formatting wrappers like \`\`\`html.
+
+Here is the HTML to optimize:
+`;
+            }
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: prompt + "\n\n" + originalHtml
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.1
+                }
+            };
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || "Failed to call Gemini API");
+            }
+
+            const data = await response.json();
+            let aiHtml = data.candidates[0].content.parts[0].text;
+
+            // Clean up markdown wrappers if Gemini still includes them
+            aiHtml = aiHtml.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
+
+            return aiHtml;
         }
 
         // STREAMING_CHUNK:Helper Functions
