@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Presentation to PDF</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4f46e5;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        .screen.active {
+            display: block;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+
+    <!-- STREAMING_CHUNK:Main Application Interface -->
+    <div class="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full border border-gray-100 relative overflow-hidden z-10">
+        
+        <!-- SCREEN 1: LANDING PAGE -->
+        <div id="screen-landing" class="screen active text-center">
+            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">Select Subject</h1>
+            <p class="text-gray-500 mt-2 text-sm mb-6">Choose a folder to save your reviewer, or create a new one.</p>
+
+            <div id="loading-subjects" class="flex flex-col items-center justify-center py-4">
+                <div class="spinner w-8 h-8 border-2 rounded-full"></div>
+                <span class="text-sm text-gray-500 mt-2">Loading your folders...</span>
+            </div>
+
+            <div id="subject-selection-area" class="hidden text-left space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Existing Subjects</label>
+                    <select id="subject-dropdown" class="w-full border border-gray-300 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm">
+                        <option value="" disabled selected>Select a subject...</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-center space-x-2 text-gray-400">
+                    <span class="h-px bg-gray-200 w-full"></span>
+                    <span class="text-xs uppercase font-semibold">OR</span>
+                    <span class="h-px bg-gray-200 w-full"></span>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Create New Subject</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="new-subject-name" placeholder="e.g., Biology 101" class="flex-1 border border-gray-300 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button id="btn-create-subject" onclick="handleCreateSubject()" class="bg-indigo-100 text-indigo-700 px-4 rounded-lg font-medium hover:bg-indigo-200 transition-colors">Add</button>
+                    </div>
+                </div>
+
+                <button id="btn-next" onclick="goToUploadScreen()" disabled class="w-full mt-6 bg-indigo-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                    Continue to Upload
+                </button>
+            </div>
+            
+            <p id="landing-error" class="text-sm text-red-500 mt-4 hidden"></p>
+        </div>
+
+        <!-- STREAMING_CHUNK:File Upload Screen -->
+        <!-- SCREEN 2: FILE UPLOAD -->
+        <div id="screen-upload" class="screen">
+            <button onclick="goToLandingScreen()" class="text-sm text-gray-500 hover:text-indigo-600 mb-4 flex items-center transition-colors">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                Back to Subjects
+            </button>
+
+            <h2 class="text-xl font-bold text-gray-800 mb-1">Upload Presentation</h2>
+            <p class="text-sm text-gray-500 mb-4">Saving to: <span id="display-selected-subject" class="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded"></span></p>
+
+            <div class="mb-5">
+                <label for="file-upload" id="drop-zone" class="flex flex-col items-center justify-center w-full h-32 border-2 border-indigo-200 border-dashed rounded-xl cursor-pointer bg-indigo-50 hover:bg-indigo-100 transition-colors relative">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-8 h-8 mb-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        <p class="text-sm text-gray-600"><span class="font-semibold text-indigo-700">Click to upload</span> HTML</p>
+                    </div>
+                    <input id="file-upload" type="file" accept=".html" class="hidden" onchange="handleFileSelection(event)" />
+                </label>
+            </div>
+
+            <div id="filename-editor-area" class="mb-6 hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Reviewer File Name</label>
+                <div class="relative">
+                    <input type="text" id="custom-filename" class="w-full border border-gray-300 rounded-lg p-3 pr-12 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 font-medium">.pdf</div>
+                </div>
+            </div>
+
+            <button id="convert-btn" onclick="startConversion()" disabled class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                Generate & Save PDF
+            </button>
+
+            <!-- STREAMING_CHUNK:Progress and Preview Window -->
+            <!-- Status Areas -->
+            <div id="status-area" class="mt-6 hidden flex flex-col justify-center p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all duration-300">
+                <div class="flex items-center mb-3">
+                    <div id="spinner" class="spinner rounded-full mr-3 hidden w-5 h-5 border-2"></div>
+                    <div class="flex-1 flex justify-between items-center">
+                        <p id="status-text" class="text-sm font-medium text-gray-600">Preparing...</p>
+                        <p id="progress-text" class="text-xs font-bold text-indigo-600">0%</p>
+                    </div>
+                </div>
+                <div id="progress-track" class="w-full bg-gray-200 rounded-full h-2 hidden overflow-hidden shadow-inner mb-4">
+                    <div id="progress-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+                
+                <!-- Live Preview Window -->
+                <div id="preview-container" class="hidden w-full aspect-video bg-gray-900 rounded-lg shadow-inner relative overflow-hidden border-4 border-gray-800 flex items-center justify-center">
+                    <div id="preview-placeholder" class="text-xs text-gray-400 animate-pulse flex flex-col items-center">
+                        <svg class="w-6 h-6 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <span>Booting virtual display...</span>
+                    </div>
+                    <img id="live-preview-img" class="w-full h-full object-contain relative z-10 hidden" src="" alt="Live Slide Preview" />
+                </div>
+            </div>
+
+            <div id="success-area" class="mt-6 hidden p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <p class="text-sm font-semibold text-green-800 mb-2">PDF Successfully Saved!</p>
+                <a id="drive-link" href="#" target="_blank" class="inline-block bg-white border border-green-300 text-sm text-green-700 hover:bg-green-50 px-4 py-2 rounded-lg font-medium transition-colors">Open in Google Drive</a>
+            </div>
+            
+            <div id="error-area" class="mt-6 hidden p-4 bg-red-50 border border-red-200 rounded-xl">
+                <p class="text-sm font-semibold text-red-700 mb-1">❌ Oops! Something went wrong.</p>
+                <p id="error-text" class="text-xs text-red-600 break-words"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- STREAMING_CHUNK:Virtual Rendering Engine -->
+    <!-- 
+      THE FIX: We use a hidden iframe to perfectly render the document.
+      It is set to exact 16:9 dimensions to match standard presentations.
+    -->
+    <div id="render-wrapper" class="fixed top-0 left-0 w-full h-full -z-50 pointer-events-none overflow-hidden" style="opacity: 0.01;">
+        <iframe id="render-container" class="w-[1280px] h-[720px] border-none bg-transparent"></iframe>
+    </div>
+
+    <!-- STREAMING_CHUNK:Javascript Logic -->
+    <script>
+        const state = { subjects: [], selectedSubjectId: null, selectedSubjectName: null, selectedFile: null };
+        const { jsPDF } = window.jspdf;
+
+        // UI Elements
+        const screenLanding = document.getElementById('screen-landing');
+        const screenUpload = document.getElementById('screen-upload');
+        const subjectDropdown = document.getElementById('subject-dropdown');
+        const newSubjectInput = document.getElementById('new-subject-name');
+        const btnNext = document.getElementById('btn-next');
+        const customFilenameInput = document.getElementById('custom-filename');
+        const convertBtn = document.getElementById('convert-btn');
+        const statusArea = document.getElementById('status-area');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+
+        const isAppsScript = typeof google !== 'undefined' && google.script;
+        const server = isAppsScript ? google.script.run : getMockServer();
+
+        window.onload = fetchSubjects;
+
+        function fetchSubjects() {
+            server.withSuccessHandler(res => {
+                document.getElementById('loading-subjects').classList.add('hidden');
+                document.getElementById('subject-selection-area').classList.remove('hidden');
+                if (res.success) {
+                    state.subjects = res.data;
+                    state.subjects.forEach(sub => {
+                        const opt = document.createElement('option');
+                        opt.value = sub.id; opt.textContent = sub.name;
+                        subjectDropdown.appendChild(opt);
+                    });
+                }
+            }).getSubjects();
+        }
+
+        subjectDropdown.addEventListener('change', (e) => {
+            state.selectedSubjectId = e.target.value;
+            state.selectedSubjectName = e.target.options[e.target.selectedIndex].text;
+            btnNext.disabled = false;
+        });
+
+        // STREAMING_CHUNK:Subject Handling
+        function handleCreateSubject() {
+            const name = newSubjectInput.value.trim();
+            if (!name) return;
+            const btn = document.getElementById('btn-create-subject');
+            btn.disabled = true; btn.textContent = '...';
+
+            server.withSuccessHandler(res => {
+                btn.disabled = false; btn.textContent = 'Add';
+                if (res.success) {
+                    state.subjects.push(res.data);
+                    state.subjects.sort((a, b) => a.name.localeCompare(b.name));
+                    subjectDropdown.innerHTML = '<option value="" disabled>Select a subject...</option>';
+                    state.subjects.forEach(sub => {
+                        const opt = document.createElement('option');
+                        opt.value = sub.id; opt.textContent = sub.name;
+                        subjectDropdown.appendChild(opt);
+                    });
+                    subjectDropdown.value = res.data.id;
+                    state.selectedSubjectId = res.data.id;
+                    state.selectedSubjectName = res.data.name;
+                    btnNext.disabled = false;
+                    newSubjectInput.value = '';
+                }
+            }).createSubjectFolder(name);
+        }
+
+        function goToUploadScreen() {
+            document.getElementById('display-selected-subject').textContent = state.selectedSubjectName;
+            screenLanding.classList.remove('active');
+            setTimeout(() => screenUpload.classList.add('active'), 300);
+        }
+
+        function goToLandingScreen() {
+            screenUpload.classList.remove('active');
+            setTimeout(() => screenLanding.classList.add('active'), 300);
+        }
+
+        function handleFileSelection(event) {
+            const file = event.target.files[0];
+            if (file) {
+                state.selectedFile = file;
+                const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+                customFilenameInput.value = nameWithoutExt + ' - Reviewer';
+                document.getElementById('filename-editor-area').classList.remove('hidden');
+                convertBtn.disabled = false;
+            }
+        }
+
+        // STREAMING_CHUNK:Core Conversion Logic
+        async function startConversion() {
+            if (!state.selectedFile || !state.selectedSubjectId) return;
+            let finalName = customFilenameInput.value.trim() || 'Reviewer';
+
+            convertBtn.disabled = true;
+            statusArea.classList.remove('hidden');
+            
+            // Show preview UI initially
+            document.getElementById('preview-container').classList.remove('hidden');
+            document.getElementById('preview-placeholder').classList.remove('hidden');
+            document.getElementById('live-preview-img').classList.add('hidden');
+            
+            document.getElementById('spinner').classList.remove('hidden');
+            document.getElementById('progress-track').classList.remove('hidden');
+            document.getElementById('error-area').classList.add('hidden');
+            document.getElementById('success-area').classList.add('hidden');
+            
+            try {
+                updateStatus('Reading HTML file...', 5);
+                const htmlContent = await readFileAsText(state.selectedFile);
+
+                updateStatus('Rendering secure browser environment...', 15);
+                const iframe = document.getElementById('render-container');
+                const doc = iframe.contentWindow.document;
+                
+                doc.open();
+                doc.write(htmlContent);
+                doc.close();
+
+                // STREAMING_CHUNK:Waiting for Fonts and Images
+                updateStatus('Painting images and icons...', 25);
+                await new Promise(async resolve => {
+                    const checkReady = async () => {
+                        try {
+                            if (iframe.contentWindow.document.fonts) {
+                                await iframe.contentWindow.document.fonts.ready;
+                            }
+                            
+                            const images = Array.from(iframe.contentWindow.document.images);
+                            await Promise.all(images.map(img => {
+                                if (img.complete) return Promise.resolve();
+                                return new Promise(r => { img.onload = r; img.onerror = r; });
+                            }));
+                        } catch (e) {
+                            console.warn("Some external assets took too long.", e);
+                        }
+                        setTimeout(resolve, 1500); // Buffer for background paints
+                    };
+
+                    let loaded = false;
+                    const fire = () => { if (!loaded) { loaded = true; checkReady(); } };
+                    
+                    iframe.onload = fire;
+                    setTimeout(fire, 5000); 
+                    
+                    if (doc.readyState === 'complete') fire();
+                });
+
+                // STREAMING_CHUNK:Injecting Fixes
+                updateStatus('Finalizing layout...', 35);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const body = doc.body;
+                
+                // CRITICAL FIX: Lock body margins and overflow to prevent scrolling white-bars
+                body.style.margin = '0';
+                body.style.padding = '0';
+                body.style.overflow = 'hidden';
+
+                const VIEWPORT_WIDTH = 1280;
+                const VIEWPORT_HEIGHT = 720;
+                iframe.style.width = VIEWPORT_WIDTH + 'px';
+                iframe.style.height = VIEWPORT_HEIGHT + 'px';
+
+                const pdf = new jsPDF('l', 'mm', 'a4'); 
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+
+                // CRITICAL FIX: Inject CSS to speed up animations without destroying base opacity
+                const styleSheet = doc.createElement('style');
+                styleSheet.innerText = `
+                    *, *::before, *::after {
+                        /* Force animations to finish in 10ms */
+                        transition-duration: 0.01s !important;
+                        transition-delay: 0s !important;
+                        animation-duration: 0.01s !important;
+                        animation-delay: 0s !important;
+                    }
+                    /* Ensure hidden slides actually stay hidden if not active */
+                    .slide:not(.active) { 
+                        display: none !important; 
+                        opacity: 0 !important; 
+                        pointer-events: none !important; 
+                    }
+                    .slide.active { 
+                        display: flex !important; 
+                        opacity: 1 !important; 
+                        z-index: 10; 
+                    }
+                    /* Hide custom presentation navigation buttons from the PDF */
+                    #nav-panel, .nav-btn, #btnNext, #btnPrev, #btnFullscreen, #btnPinNav {
+                        display: none !important;
+                        opacity: 0 !important;
+                        visibility: hidden !important;
+                    }
+                `;
+                doc.head.appendChild(styleSheet);
+
+                // STREAMING_CHUNK:Slide Capture Loop
+                const customSlides = doc.querySelectorAll('.slide');
+                const isCustomDeck = customSlides.length > 0;
+
+                let slideCount = 0;
+                const MAX_SLIDES = isCustomDeck ? customSlides.length : 150; 
+
+                while (slideCount < MAX_SLIDES) {
+                    let progressChunk = MAX_SLIDES > 0 ? (slideCount / MAX_SLIDES) : 0;
+                    updateStatus(`Capturing slide ${slideCount + 1} of ${MAX_SLIDES}...`, 40 + Math.floor(progressChunk * 40));
+                    
+                    if (isCustomDeck) {
+                        customSlides.forEach(s => s.classList.remove('active'));
+                        customSlides[slideCount].classList.add('active');
+                        // Wait for 0.01s animation to finish and screen to repaint
+                        await new Promise(r => setTimeout(r, 400));
+                    } else {
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+
+                    // CRITICAL FIX: Force x/y/scrollY to 0 so it aligns perfectly to the top left
+                    const canvas = await html2canvas(body, {
+                        window: iframe.contentWindow,
+                        scale: 1.5, 
+                        useCORS: true, 
+                        allowTaint: false, 
+                        imageTimeout: 15000, 
+                        backgroundColor: null, // CRITICAL: Let HTML dictate its own background color
+                        width: VIEWPORT_WIDTH,
+                        height: VIEWPORT_HEIGHT,
+                        windowWidth: VIEWPORT_WIDTH,
+                        windowHeight: VIEWPORT_HEIGHT,
+                        x: 0,
+                        y: 0,
+                        scrollX: 0,
+                        scrollY: 0
+                    });
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.90);
+
+                    // Update Live Preview UI
+                    document.getElementById('preview-placeholder').classList.add('hidden');
+                    const previewImg = document.getElementById('live-preview-img');
+                    previewImg.src = imgData;
+                    previewImg.classList.remove('hidden');
+
+                    const imgProps = pdf.getImageProperties(imgData);
+                    const ratio = imgProps.width / imgProps.height;
+                    let renderWidth = pdfWidth;
+                    let renderHeight = pdfWidth / ratio;
+                    
+                    if (renderHeight > pdfHeight) {
+                        renderHeight = pdfHeight;
+                        renderWidth = pdfHeight * ratio;
+                    }
+                    
+                    const x = (pdfWidth - renderWidth) / 2;
+                    const y = (pdfHeight - renderHeight) / 2;
+
+                    if (slideCount > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', x, y, renderWidth, renderHeight);
+
+                    slideCount++;
+                    
+                    if (isCustomDeck) continue;
+
+                    // Fallbacks for non-custom presentations
+                    const spaceEvent = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, bubbles: true });
+                    const arrowEvent = new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true });
+                    doc.dispatchEvent(spaceEvent); doc.dispatchEvent(arrowEvent);
+                }
+
+                if (slideCount === 0) throw new Error("The uploaded file rendered completely empty.");
+
+                // STREAMING_CHUNK:Saving PDF
+                updateStatus(`Stitching ${slideCount} slides into PDF...`, 80);
+                // Yield thread to allow UI to update
+                await new Promise(r => setTimeout(r, 100)); 
+                const pdfBase64 = pdf.output('datauristring');
+
+                updateStatus('Uploading to Google Drive...', 85);
+                server.withSuccessHandler(onSuccess).withFailureHandler(onError).savePdfToDrive(pdfBase64, finalName, state.selectedSubjectId);
+
+            } catch (error) {
+                onError(error.message);
+            }
+        }
+
+        // STREAMING_CHUNK:Helper Functions
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read the HTML file.'));
+                reader.readAsText(file);
+            });
+        }
+
+        function onSuccess(response) {
+            resetUI();
+            if (response && response.success) {
+                updateStatus('Complete!', 100);
+                document.getElementById('success-area').classList.remove('hidden');
+                document.getElementById('drive-link').href = response.url;
+                document.getElementById('render-container').src = 'about:blank'; 
+            } else {
+                onError(response.error);
+            }
+        }
+
+        function onError(errorMessage) {
+            resetUI();
+            document.getElementById('error-area').classList.remove('hidden');
+            document.getElementById('error-text').textContent = errorMessage;
+            document.getElementById('render-container').src = 'about:blank'; 
+        }
+
+        function updateStatus(text, progressPercent) {
+            document.getElementById('status-text').textContent = text;
+            if (progressPercent !== undefined) {
+                progressBar.style.width = progressPercent + '%';
+                progressText.textContent = progressPercent + '%';
+            }
+        }
+
+        function resetUI() {
+            document.getElementById('spinner').classList.add('hidden');
+            document.getElementById('progress-track').classList.add('hidden');
+            
+            // Reset Preview Window
+            document.getElementById('preview-container').classList.add('hidden');
+            document.getElementById('preview-placeholder').classList.remove('hidden');
+            document.getElementById('live-preview-img').classList.add('hidden');
+            document.getElementById('live-preview-img').src = "";
+            
+            convertBtn.disabled = false;
+            setTimeout(() => statusArea.classList.add('hidden'), 3000);
+        }
+
+        function getMockServer() {
+            return {
+                withSuccessHandler: function(cb) { this.successCb = cb; return this; },
+                withFailureHandler: function(cb) { this.failureCb = cb; return this; },
+                getSubjects: function() { setTimeout(() => this.successCb({success: true, data: [{id: '1', name: 'Science'}, {id: '2', name: 'History'}]}), 800); },
+                createSubjectFolder: function(name) { setTimeout(() => this.successCb({success: true, data: { id: 'new', name: name }}), 800); },
+                savePdfToDrive: function(pdfBase64, name, id) { 
+                    setTimeout(() => {
+                        const link = document.createElement("a");
+                        link.href = pdfBase64;
+                        link.download = name + ".pdf";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        this.successCb({success: true, url: '#' });
+                    }, 2000); 
+                }
+            };
+        }
+    </script>
+</body>
+</html>
