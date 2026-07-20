@@ -80,3 +80,26 @@ function savePdfToDrive(base64Data, filename, targetFolderId) {
     return { success: false, error: error.toString() };
   }
 }
+
+/**
+ * 5. SAVE THE OPTIMIZED HTML TO DRIVE
+ */
+function saveHtmlToDrive(htmlContent, filename, targetFolderId) {
+  try {
+    let finalName = filename;
+    if (!finalName.toLowerCase().endsWith('.html')) {
+      finalName += '.html';
+    }
+
+    const blob = Utilities.newBlob(htmlContent, MimeType.HTML, finalName);
+
+    const folderIdToUse = targetFolderId || ROOT_FOLDER_ID;
+    const folder = DriveApp.getFolderById(folderIdToUse);
+    const file = folder.createFile(blob);
+
+    return { success: true, url: file.getUrl() };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}

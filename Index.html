@@ -39,8 +39,40 @@
     <!-- STREAMING_CHUNK:Main Application Interface -->
     <div class="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full border border-gray-100 relative overflow-hidden z-10">
         
+        <!-- SCREEN 0: MODE SELECTION -->
+        <div id="screen-mode-selection" class="screen active text-center">
+            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">Select Tool</h1>
+            <p class="text-gray-500 mt-2 text-sm mb-6">What would you like to do with your HTML presentation?</p>
+
+            <div class="space-y-4">
+                <button onclick="selectMode('pdf')" class="w-full group relative flex flex-col items-center p-6 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left">
+                    <div class="flex items-center w-full mb-2">
+                        <svg class="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        <h3 class="font-bold text-gray-800 text-lg">PDF Converter</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 w-full">Convert your presentation to a static PDF document.</p>
+                </button>
+
+                <button onclick="selectMode('mobile')" class="w-full group relative flex flex-col items-center p-6 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left">
+                    <div class="flex items-center w-full mb-2">
+                        <svg class="w-6 h-6 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        <h3 class="font-bold text-gray-800 text-lg">Mobile Optimizer</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 w-full">Smartly analyze and convert to a mobile-responsive HTML view.</p>
+                </button>
+            </div>
+        </div>
+
         <!-- SCREEN 1: LANDING PAGE -->
-        <div id="screen-landing" class="screen active text-center">
+        <div id="screen-landing" class="screen text-center">
+            <button onclick="goToModeSelection()" class="text-sm text-gray-500 hover:text-indigo-600 mb-4 flex items-center transition-colors">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                Back to Tools
+            </button>
+
             <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
             </div>
@@ -107,7 +139,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Reviewer File Name</label>
                 <div class="relative">
                     <input type="text" id="custom-filename" class="w-full border border-gray-300 rounded-lg p-3 pr-12 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
-                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 font-medium">.pdf</div>
+                    <div id="file-extension-label" class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 font-medium">.pdf</div>
                 </div>
             </div>
 
@@ -143,7 +175,7 @@
                 <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                     <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
-                <p class="text-sm font-semibold text-green-800 mb-2">PDF Successfully Saved!</p>
+                <p id="success-message" class="text-sm font-semibold text-green-800 mb-2">File Successfully Saved!</p>
                 <a id="drive-link" href="#" target="_blank" class="inline-block bg-white border border-green-300 text-sm text-green-700 hover:bg-green-50 px-4 py-2 rounded-lg font-medium transition-colors">Open in Google Drive</a>
             </div>
             
@@ -165,10 +197,11 @@
 
     <!-- STREAMING_CHUNK:Javascript Logic -->
     <script>
-        const state = { subjects: [], selectedSubjectId: null, selectedSubjectName: null, selectedFile: null };
+        const state = { subjects: [], selectedSubjectId: null, selectedSubjectName: null, selectedFile: null, mode: 'pdf' };
         const { jsPDF } = window.jspdf;
 
         // UI Elements
+        const screenModeSelection = document.getElementById('screen-mode-selection');
         const screenLanding = document.getElementById('screen-landing');
         const screenUpload = document.getElementById('screen-upload');
         const subjectDropdown = document.getElementById('subject-dropdown');
@@ -233,8 +266,31 @@
             }).createSubjectFolder(name);
         }
 
+        function selectMode(mode) {
+            state.mode = mode;
+            screenModeSelection.classList.remove('active');
+            setTimeout(() => screenLanding.classList.add('active'), 300);
+        }
+
+        function goToModeSelection() {
+            screenLanding.classList.remove('active');
+            setTimeout(() => screenModeSelection.classList.add('active'), 300);
+        }
+
         function goToUploadScreen() {
             document.getElementById('display-selected-subject').textContent = state.selectedSubjectName;
+
+            // Adjust UI based on mode
+            const extLabel = document.getElementById('file-extension-label');
+            if (extLabel) {
+                extLabel.textContent = state.mode === 'pdf' ? '.pdf' : '.html';
+            }
+
+            const actionBtn = document.getElementById('convert-btn');
+            if (actionBtn) {
+                actionBtn.textContent = state.mode === 'pdf' ? 'Generate & Save PDF' : 'Optimize & Save HTML';
+            }
+
             screenLanding.classList.remove('active');
             setTimeout(() => screenUpload.classList.add('active'), 300);
         }
@@ -249,7 +305,11 @@
             if (file) {
                 state.selectedFile = file;
                 const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-                customFilenameInput.value = nameWithoutExt + ' - Reviewer';
+                if (state.mode === 'mobile') {
+                    customFilenameInput.value = nameWithoutExt + ' - HTML View';
+                } else {
+                    customFilenameInput.value = nameWithoutExt + ' - Reviewer';
+                }
                 document.getElementById('filename-editor-area').classList.remove('hidden');
                 convertBtn.disabled = false;
             }
@@ -258,15 +318,19 @@
         // STREAMING_CHUNK:Core Conversion Logic
         async function startConversion() {
             if (!state.selectedFile || !state.selectedSubjectId) return;
-            let finalName = customFilenameInput.value.trim() || 'Reviewer';
+            let finalName = customFilenameInput.value.trim() || (state.mode === 'mobile' ? 'HTML View' : 'Reviewer');
 
             convertBtn.disabled = true;
             statusArea.classList.remove('hidden');
             
-            // Show preview UI initially
-            document.getElementById('preview-container').classList.remove('hidden');
-            document.getElementById('preview-placeholder').classList.remove('hidden');
-            document.getElementById('live-preview-img').classList.add('hidden');
+            // Show preview UI initially (only for PDF)
+            if (state.mode === 'pdf') {
+                document.getElementById('preview-container').classList.remove('hidden');
+                document.getElementById('preview-placeholder').classList.remove('hidden');
+                document.getElementById('live-preview-img').classList.add('hidden');
+            } else {
+                document.getElementById('preview-container').classList.add('hidden');
+            }
             
             document.getElementById('spinner').classList.remove('hidden');
             document.getElementById('progress-track').classList.remove('hidden');
@@ -276,6 +340,11 @@
             try {
                 updateStatus('Reading HTML file...', 5);
                 const htmlContent = await readFileAsText(state.selectedFile);
+
+                if (state.mode === 'mobile') {
+                    await startMobileOptimization(htmlContent, finalName);
+                    return;
+                }
 
                 updateStatus('Rendering secure browser environment...', 15);
                 const iframe = document.getElementById('render-container');
@@ -452,6 +521,141 @@
             }
         }
 
+        // STREAMING_CHUNK:Mobile Optimization Logic
+        async function startMobileOptimization(htmlContent, finalName) {
+            updateStatus('Analyzing HTML structure...', 20);
+            await new Promise(r => setTimeout(r, 500)); // Simulate processing time
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+
+            updateStatus('Injecting smart responsive CSS...', 50);
+
+            // 1. Add viewport meta tag if missing or replace it
+            let viewportMeta = doc.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) {
+                viewportMeta = doc.createElement('meta');
+                viewportMeta.name = 'viewport';
+                doc.head.appendChild(viewportMeta);
+            }
+            viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+
+            // 2. Inject Smart Responsive CSS
+            const style = doc.createElement('style');
+            style.id = 'smart-mobile-optimizer-css';
+            style.textContent = `
+                /* Base Reset for Mobile */
+                html, body {
+                    width: 100% !important;
+                    height: auto !important;
+                    min-height: 100vh !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow-x: hidden !important;
+                    overflow-y: auto !important;
+                    background-color: #f0f0f0 !important; /* Fallback */
+                }
+
+                /* Container for slides */
+                body {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: center !important;
+                }
+
+                /* Override typical presentation absolute/fixed positioning */
+                .slide, section, .reveal .slides > section {
+                    position: relative !important;
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100vw !important;
+                    height: auto !important;
+                    min-height: auto !important;
+                    margin: 0 0 20px 0 !important; /* Space between slides */
+                    padding: 20px !important;
+                    box-sizing: border-box !important;
+                    opacity: 1 !important;
+                    visibility: visible !important;
+                    transform: none !important;
+                    left: auto !important;
+                    top: auto !important;
+                    background-color: white !important;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                    border-radius: 8px !important;
+                    page-break-inside: avoid; /* Useful if someone prints it later */
+                }
+
+                /* Ensure all text scales and wraps properly */
+                * {
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+
+                h1, h2, h3, h4, h5, h6, p, div, span {
+                    white-space: normal !important;
+                    word-wrap: break-word !important;
+                    height: auto !important;
+                }
+
+                /* Handle images and media */
+                img, video, canvas, iframe {
+                    max-width: 100% !important;
+                    height: auto !important;
+                    display: block !important;
+                    margin: 0 auto !important;
+                    object-fit: contain !important;
+                }
+
+                /* Hide presentation-specific UI elements */
+                .controls, .progress, .navigate-left, .navigate-right,
+                .slide-number, .speaker-notes, #nav-panel, .nav-btn,
+                #btnNext, #btnPrev, #btnFullscreen, #btnPinNav {
+                    display: none !important;
+                }
+
+                /* Reveal.js specific overrides */
+                .reveal .slides {
+                    position: relative !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    transform: none !important;
+                    display: block !important;
+                }
+
+                .reveal {
+                    width: 100% !important;
+                    height: auto !important;
+                    display: block !important;
+                }
+
+                /* Ensure portrait orientation specifically */
+                @media screen and (orientation: portrait) {
+                    .slide, section {
+                        padding: 15px !important;
+                    }
+                    /* Slightly reduce font sizes on very small screens */
+                    html {
+                        font-size: 90% !important;
+                    }
+                }
+            `;
+            doc.head.appendChild(style);
+
+            // 3. Optional: Remove specific JS that might break the flow (like presentation libraries' initialization)
+            // We want it to be a static-like scrollable document.
+            // We can comment out or remove script tags that initialize known presentation frameworks if needed,
+            // but the CSS overrides above usually force the layout well enough.
+
+            updateStatus('Serializing optimized HTML...', 80);
+            await new Promise(r => setTimeout(r, 500));
+
+            const finalHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+
+            updateStatus('Uploading optimized HTML to Google Drive...', 90);
+
+            server.withSuccessHandler(onSuccess).withFailureHandler(onError).saveHtmlToDrive(finalHtml, finalName, state.selectedSubjectId);
+        }
+
         // STREAMING_CHUNK:Helper Functions
         function readFileAsText(file) {
             return new Promise((resolve, reject) => {
@@ -467,6 +671,7 @@
             if (response && response.success) {
                 updateStatus('Complete!', 100);
                 document.getElementById('success-area').classList.remove('hidden');
+                document.getElementById('success-message').textContent = state.mode === 'pdf' ? 'PDF Successfully Saved!' : 'Optimized HTML Successfully Saved!';
                 document.getElementById('drive-link').href = response.url;
                 document.getElementById('render-container').src = 'about:blank'; 
             } else {
@@ -519,6 +724,18 @@
                         document.body.removeChild(link);
                         this.successCb({success: true, url: '#' });
                     }, 2000); 
+                },
+                saveHtmlToDrive: function(htmlContent, name, id) {
+                    setTimeout(() => {
+                        const blob = new Blob([htmlContent], { type: 'text/html' });
+                        const link = document.createElement("a");
+                        link.href = URL.createObjectURL(blob);
+                        link.download = name + ".html";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        this.successCb({success: true, url: '#' });
+                    }, 2000);
                 }
             };
         }
