@@ -341,11 +341,6 @@
                 updateStatus('Reading HTML file...', 5);
                 const htmlContent = await readFileAsText(state.selectedFile);
 
-                if (state.mode === 'mobile') {
-                    await startMobileOptimization(htmlContent, finalName);
-                    return;
-                }
-
                 updateStatus('Rendering secure browser environment...', 15);
                 const iframe = document.getElementById('render-container');
                 const doc = iframe.contentWindow.document;
@@ -382,6 +377,11 @@
                     
                     if (doc.readyState === 'complete') fire();
                 });
+
+                if (state.mode === 'mobile') {
+                    await startMobileOptimization(doc, finalName);
+                    return;
+                }
 
                 // STREAMING_CHUNK:Injecting Fixes
                 updateStatus('Finalizing layout...', 35);
@@ -522,30 +522,52 @@
         }
 
         // STREAMING_CHUNK:Mobile Optimization Logic
-        async function startMobileOptimization(htmlContent, finalName) {
-            updateStatus('Analyzing HTML structure...', 20);
-            await new Promise(r => setTimeout(r, 500)); // Simulate processing time
+        async function startMobileOptimization(doc, finalName) {
+            updateStatus('Analyzing rendered HTML structure...', 40);
+            await new Promise(r => setTimeout(r, 500)); // Buffer
 
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(htmlContent, 'text/html');
+            // 1. Freeze the DOM: Remove all scripts to prevent presentation libraries
+            // from trying to recalculate layouts or override our CSS.
+            const scripts = doc.querySelectorAll('script');
+            scripts.forEach(s => s.remove());
 
-            updateStatus('Injecting smart responsive CSS...', 50);
+            // 2. Remove inline styles that hide elements (opacity: 0, display: none) common in presentation engines
+            // targeting the most likely slide containers.
+            const slideSelectors = 'section, .slide, .step, article, .reveal .slides > section';
+            const allSlides = doc.querySelectorAll(slideSelectors);
+            allSlides.forEach(slide => {
+                slide.style.removeProperty('display');
+                slide.style.removeProperty('opacity');
+                slide.style.removeProperty('visibility');
+                slide.style.removeProperty('transform');
 
-            // 1. Add viewport meta tag if missing or replace it
+                // Also unhide children that might be animated/hidden
+                const hiddenChildren = slide.querySelectorAll('[style*="display: none"], [style*="opacity: 0"]');
+                hiddenChildren.forEach(c => {
+                    c.style.removeProperty('display');
+                    c.style.removeProperty('opacity');
+                });
+            });
+
+            updateStatus('Injecting smart responsive CSS...', 60);
+
+            // 3. Add viewport meta tag if missing or replace it
             let viewportMeta = doc.querySelector('meta[name="viewport"]');
             if (!viewportMeta) {
                 viewportMeta = doc.createElement('meta');
                 viewportMeta.name = 'viewport';
                 doc.head.appendChild(viewportMeta);
             }
-            viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes';
 
-            // 2. Inject Smart Responsive CSS
+            // 4. Inject Extremely Aggressive Smart Responsive CSS
             const style = doc.createElement('style');
             style.id = 'smart-mobile-optimizer-css';
             style.textContent = `
-                /* Base Reset for Mobile */
-                html, body {
+                /* Ultra Aggressive Base Reset for Mobile */
+                html, body, #root, #app, .reveal, .reveal-viewport, .slides {
+                    position: static !important;
+                    display: block !important;
                     width: 100% !important;
                     height: auto !important;
                     min-height: 100vh !important;
@@ -553,7 +575,8 @@
                     padding: 0 !important;
                     overflow-x: hidden !important;
                     overflow-y: auto !important;
-                    background-color: #f0f0f0 !important; /* Fallback */
+                    background: #f0f4f8 !important; /* Nice fallback background */
+                    transform: none !important;
                 }
 
                 /* Container for slides */
@@ -561,28 +584,34 @@
                     display: flex !important;
                     flex-direction: column !important;
                     align-items: center !important;
+                    padding: 10px !important;
                 }
 
-                /* Override typical presentation absolute/fixed positioning */
-                .slide, section, .reveal .slides > section {
+                /* Override typical presentation absolute/fixed positioning for every possible slide */
+                section, .slide, .step, article, .reveal .slides > section {
                     position: relative !important;
-                    display: block !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: center !important;
                     width: 100% !important;
-                    max-width: 100vw !important;
+                    max-width: 800px !important;
                     height: auto !important;
-                    min-height: auto !important;
-                    margin: 0 0 20px 0 !important; /* Space between slides */
-                    padding: 20px !important;
+                    min-height: 250px !important;
+                    margin: 0 0 24px 0 !important; /* Space between slides */
+                    padding: 30px 20px !important;
                     box-sizing: border-box !important;
                     opacity: 1 !important;
                     visibility: visible !important;
                     transform: none !important;
                     left: auto !important;
                     top: auto !important;
+                    right: auto !important;
+                    bottom: auto !important;
                     background-color: white !important;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                    border-radius: 8px !important;
-                    page-break-inside: avoid; /* Useful if someone prints it later */
+                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05) !important;
+                    border-radius: 12px !important;
+                    page-break-inside: avoid;
+                    z-index: 1 !important;
                 }
 
                 /* Ensure all text scales and wraps properly */
@@ -598,53 +627,50 @@
                 }
 
                 /* Handle images and media */
-                img, video, canvas, iframe {
+                img, video, canvas, iframe, object, embed {
                     max-width: 100% !important;
                     height: auto !important;
+                    max-height: 400px !important;
                     display: block !important;
-                    margin: 0 auto !important;
+                    margin: 10px auto !important;
                     object-fit: contain !important;
+                    position: static !important;
                 }
 
-                /* Hide presentation-specific UI elements */
+                /* Hide presentation-specific UI elements and loading overlays */
                 .controls, .progress, .navigate-left, .navigate-right,
                 .slide-number, .speaker-notes, #nav-panel, .nav-btn,
-                #btnNext, #btnPrev, #btnFullscreen, #btnPinNav {
+                #btnNext, #btnPrev, #btnFullscreen, #btnPinNav,
+                .reveal-background, .backgrounds, .loading-spinner, #loader {
                     display: none !important;
+                    opacity: 0 !important;
+                    visibility: hidden !important;
                 }
 
-                /* Reveal.js specific overrides */
-                .reveal .slides {
-                    position: relative !important;
-                    width: 100% !important;
+                /* Remove absolutely positioned wrappers that might clip content */
+                .reveal .slides > section > section {
+                    position: static !important;
                     height: auto !important;
+                    display: block !important;
                     transform: none !important;
-                    display: block !important;
-                }
-
-                .reveal {
-                    width: 100% !important;
-                    height: auto !important;
-                    display: block !important;
                 }
 
                 /* Ensure portrait orientation specifically */
-                @media screen and (orientation: portrait) {
-                    .slide, section {
-                        padding: 15px !important;
+                @media screen and (max-width: 600px) {
+                    section, .slide, .step, article {
+                        padding: 20px 15px !important;
+                        margin-bottom: 16px !important;
                     }
-                    /* Slightly reduce font sizes on very small screens */
                     html {
-                        font-size: 90% !important;
+                        font-size: 95% !important;
                     }
+                    /* Ensure headers don't overflow */
+                    h1 { font-size: 1.8rem !important; line-height: 1.2 !important; }
+                    h2 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+                    h3 { font-size: 1.3rem !important; }
                 }
             `;
             doc.head.appendChild(style);
-
-            // 3. Optional: Remove specific JS that might break the flow (like presentation libraries' initialization)
-            // We want it to be a static-like scrollable document.
-            // We can comment out or remove script tags that initialize known presentation frameworks if needed,
-            // but the CSS overrides above usually force the layout well enough.
 
             updateStatus('Serializing optimized HTML...', 80);
             await new Promise(r => setTimeout(r, 500));
